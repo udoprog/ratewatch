@@ -5,7 +5,7 @@
 #include <sys/timeb.h>
 
 #define MSSEC 1000
-#define WAIT 5
+#define WAIT 1
 #define BUFFER_SIZE (1048576 * 10)
 #define UNIT "KB/s"
 #define UNITSIZE 1000
