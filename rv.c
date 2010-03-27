@@ -43,7 +43,7 @@ void monitor_process(int in_fd, int out_fd) {
   struct timeb now, then;
 
   unsigned long long diff = 0;
-  unsigned long long bytecount = 0;
+  unsigned long long byte = 0;
   
   if (ftime(&then)) {
     perror("ftime");
@@ -80,7 +80,7 @@ void monitor_process(int in_fd, int out_fd) {
     }
     
     diff += msdiff(now, then);
-    bytecount += write_s;
+    byte += write_s;
     
     if (diff > (WAIT * MSSEC)) {
       if (openlog() == -1) {
@@ -88,9 +88,9 @@ void monitor_process(int in_fd, int out_fd) {
         break;
       }
       
-      fprintf(logfile_fd, "  rate: %lld " UNIT "\n", ((bytecount / diff) * 1000) / UNITSIZE);
+      fprintf(logfile_fd, "  rate: %lld " UNIT "\n", ((byte / diff) * 1000) / UNITSIZE);
       fprintf(logfile_fd, "  diff: %lld\n", diff);
-      fprintf(logfile_fd, "  byte: %lld\n", diff);
+      fprintf(logfile_fd, "  byte: %lld\n", byte);
       
       if (closelog() == -1) {
         perror("closelog");
@@ -98,7 +98,7 @@ void monitor_process(int in_fd, int out_fd) {
       }
       
       diff = 0;
-      bytecount = 0;
+      byte = 0;
     }
   }
 }
