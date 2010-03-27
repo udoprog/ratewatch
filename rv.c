@@ -5,9 +5,8 @@
 #include <sys/timeb.h>
 
 #define MSSEC 1000
-#define WAIT 1
-#define BUFFER_SIZE (1048576 * 100)
-#define LOGENV "LOG"
+#define WAIT 5
+#define BUFFER_SIZE (1048576 * 10)
 #define UNIT "KB/s"
 #define UNITSIZE 1000
 
@@ -25,7 +24,7 @@ int closelog() {
   return 0;
 }
 
-unsigned long msdiff(struct timeb now, struct timeb then) {
+unsigned long long msdiff(struct timeb now, struct timeb then) {
   return ((now.time - then.time) * MSSEC) + (now.millitm - then.millitm);
 }
 
@@ -34,8 +33,8 @@ void monitor_process(int in_fd, int out_fd) {
 
   struct timeb now, then;
 
-  unsigned long diff = 0;
-  unsigned long bytecount = 0;
+  unsigned long long diff = 0;
+  unsigned long long bytecount = 0;
   
   if (ftime(&then)) {
     perror("ftime");
@@ -80,15 +79,15 @@ void monitor_process(int in_fd, int out_fd) {
         break;
       }
       
-      fprintf(logfile_fd, "rate: %ld " UNIT "\n", ((bytecount * 1000) / diff) / UNITSIZE);
-      fprintf(logfile_fd, "diff: %ld\n", diff);
-      fprintf(logfile_fd, "byte: %ld\n", bytecount);
+      fprintf(logfile_fd, "rate: %lld " UNIT "\n", ((bytecount / diff) * 1000) / UNITSIZE);
+      fprintf(logfile_fd, "diff: %lld\n", diff);
+      fprintf(logfile_fd, "byte: %lld\n", bytecount);
       
       if (closelog() == -1) {
         perror("closelog");
         break;
       }
-
+      
       diff = 0;
       bytecount = 0;
     }
@@ -104,7 +103,6 @@ int main(int argc, char *argv[]) {
   logfile = argv[1];
   
   if (logfile == NULL) {
-    fprintf(stderr, "getenv: could not find environment variable: " LOGENV);
     return 1;
   }
   
