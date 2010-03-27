@@ -27,6 +27,8 @@ For using with sftp:
     session=$base/$USER/$(date +'%y%m%d-%H%M%S')-$$
 
     mkdir -p $session
+    echo $USER > $session/username
+    touch $session/active
 
     function log {
         echo "$(date +'%y%m%d-%H%M%S') - $@" >> $session/main.log
@@ -39,3 +41,5 @@ For using with sftp:
       /usr/lib/openssh/rv $session/rate.out
 
     log "logout: $USER"
+
+    rm $session/active
