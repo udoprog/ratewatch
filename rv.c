@@ -88,9 +88,9 @@ void monitor_process(int in_fd, int out_fd) {
         break;
       }
       
-      fprintf(logfile_fd, "rate: %lld " UNIT "\n", ((bytecount / diff) * 1000) / UNITSIZE);
-      fprintf(logfile_fd, "diff: %lld", diff);
-      fprintf(logfile_fd, "byte: %lld", diff);
+      fprintf(logfile_fd, "  rate: %lld " UNIT "\n", ((bytecount / diff) * 1000) / UNITSIZE);
+      fprintf(logfile_fd, "  diff: %lld\n", diff);
+      fprintf(logfile_fd, "  byte: %lld\n", diff);
       
       if (closelog() == -1) {
         perror("closelog");
