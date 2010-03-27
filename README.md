@@ -17,10 +17,25 @@ Read log:
 
 For using with sftp:
 ---
-
     #!/bin/bash
-    # A simple sftp wrapper
+    # A wrapper script for sftp-server, put in /usr/lib/sftp-server-mon and change the following in sshd_config;
+    #
+    # Subsystem sftp /usr/lib/openssh/sftp-server-mon
+    #
 
-    /usr/lib/openssh/rv /var/log/sftp/rate.$USER.in |\
+    base=/var/log/sftp
+    session=$base/$USER/$(date +'%y%m%d-%H%M%S')-$$
+
+    mkdir -p $session
+
+    function log {
+        echo "$(date +'%y%m%d-%H%M%S') - $@" >> $session/main.log
+    }
+
+    log "login: $USER"
+
+    /usr/lib/openssh/rv $session/rate.in |\
       /usr/lib/openssh/sftp-server |\
-      /usr/lib/openssh/rv /var/log/sftp/rate.$USER.out
+      /usr/lib/openssh/rv $session/rate.out
+
+    log "logout: $USER"

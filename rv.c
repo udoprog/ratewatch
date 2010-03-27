@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/timeb.h>
+#include <time.h>
 
 #define MSSEC 1000
-#define WAIT 1
+#define WAIT 10
 #define BUFFER_SIZE (1048576 * 10)
 #define UNIT "KB/s"
 #define UNITSIZE 1000
@@ -15,7 +16,15 @@ char *logfile;
 char *buffer;
 
 int openlog() {
-  logfile_fd = fopen(logfile, "w");
+  logfile_fd = fopen(logfile, "a");
+  
+  if (logfile_fd != NULL) {
+    time_t rawtime;
+    time ( &rawtime );
+    struct tm * timeinfo = localtime ( &rawtime );
+    fprintf(logfile_fd, "%s", asctime (timeinfo));
+  }
+  
   return logfile_fd == NULL ? -1 : 0;
 }
 
@@ -80,8 +89,8 @@ void monitor_process(int in_fd, int out_fd) {
       }
       
       fprintf(logfile_fd, "rate: %lld " UNIT "\n", ((bytecount / diff) * 1000) / UNITSIZE);
-      fprintf(logfile_fd, "diff: %lld\n", diff);
-      fprintf(logfile_fd, "byte: %lld\n", bytecount);
+      fprintf(logfile_fd, "diff: %lld", diff);
+      fprintf(logfile_fd, "byte: %lld", diff);
       
       if (closelog() == -1) {
         perror("closelog");
