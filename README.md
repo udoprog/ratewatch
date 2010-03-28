@@ -1,3 +1,9 @@
+Ratewatch is like Pipewatch, except it has the possibility to write the rates to a file instead of writing to tty (like pv).
+
+This can be useful when wrapping programs that communicate over pipes, like sftp-server or something using (x)inetd to keep track of rates.
+
+In the future, I plan for this to be pluggable (dbus perhaps?) to publish the rates on which the monitored programs are running.
+
 Howto Use
 ===
 Make:
@@ -8,12 +14,12 @@ Make:
 Test:
 ---
 
-    cat /dev/urandom | rv test.log > /dev/null
+    cat /dev/urandom | ./rv test.log cat > /dev/null
 
 Read log:
 ---
 
-    cat test.log
+    tail -f test.log
 
 For using with sftp:
 ---
