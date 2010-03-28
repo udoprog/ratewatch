@@ -47,6 +47,41 @@ unsigned long long msdiff(now, then)
   return ((now.time - then.time) * MSSEC) + (now.millitm - then.millitm);
 }
 
+int report_rate(name, diff, byte, logfile)
+    const char *name;
+    unsigned long long diff;
+    unsigned long long byte;
+    const char *logfile;
+{
+    FILE *fd;
+    char now_time[512];
+    
+    if ((fd = openlog(logfile)) == NULL) {
+        fprintf(stderr, "%s: openlog: %s\n", name, strerror(errno));
+        return -1;
+    }
+    
+    if (gettime(now_time, 512) == -1) {
+        fprintf(stderr, "%s: gettime: %s\n", name, strerror(errno));
+        return -1;
+    }
+    
+    unsigned long long result = 0;
+    
+    if (diff != 0) {
+        result = ((byte / diff) * 1000) / UNITSIZE;
+    }
+    
+    fprintf(fd, "%s: %s - %lld " UNIT "\n", name, now_time, result);
+
+    if (fclose(fd) == EOF) {
+        fprintf(stderr, "%s: fclose: %s\n", name, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 int monitor_process(in_fd, out_fd, argc, argv)
     int in_fd;
     int out_fd;
@@ -69,8 +104,6 @@ int monitor_process(in_fd, out_fd, argc, argv)
 
     unsigned long long diff = 0;
     unsigned long long byte = 0;
-
-    char now_time[512];
     
     FILE *log_fd;
     
@@ -82,12 +115,12 @@ int monitor_process(in_fd, out_fd, argc, argv)
     while(1) {
         if (ftime(&then)) {
             fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
-            return 1;
+            break;
         }
         
         if ((read_s = read(in_fd, buffer, BUFFER_SIZE)) == -1) {
             fprintf(stderr, "%s: read: %s\n", name, strerror(errno));
-            return 1;
+            break;
         }
         
         if (read_s == 0) {
@@ -111,27 +144,15 @@ int monitor_process(in_fd, out_fd, argc, argv)
             continue;
         }
 
-        if ((log_fd = openlog(logfile)) == NULL) {
-            fprintf(stderr, "%s: openlog: %s\n", name, strerror(errno));
+        if (report_rate(name, diff, byte, logfile) == -1) {
             return 1;
         }
         
-        if (gettime(now_time, 512) == -1) {
-            fprintf(stderr, "%s: gettime: %s\n", name, strerror(errno));
-            return 1;
-        }
-        
-        fprintf(log_fd, "%s: %s - %lld " UNIT "\n", name, now_time, ((byte / diff) * 1000) / UNITSIZE);
-        
-        if (fclose(log_fd) == EOF) {
-            fprintf(stderr, "%s: fclose: %s\n", name, strerror(errno));
-            return 1;
-        }
-
         diff = 0;
         byte = 0;
     }
     
+    report_rate(name, diff, byte, logfile);
     return 0;
 }
 
@@ -274,25 +295,43 @@ int main(argc, argv)
         // this should not happen
         _exit(1);
     }
+
+    int exit_status;
     
     {
         int i;
         int status;
         
-        for (i = 0; i < 3; i++) {
+        int alive = 3;
+        
+        pid_t pids[] = {child_pid};
+        pid_t monitors[] = {p_stdout_pid, p_stdin_pid};
+        int killed_pids[] = {0, 0};
+        
+        while (alive > 0) {
             pid_t pid = waitpid(0, &status, 0);
-
-            if (WIFEXITED(status)) {
-                // this is normal, each child process exits O.K.
+            
+            // if child exited normally
+            if (WIFEXITED(status) && pid == child_pid) {
+                exit_status = WEXITSTATUS(status);
+                
+                for (i = 0; i < sizeof(monitors) / sizeof(pid_t); i++) {
+                    kill(monitors[i], SIGTERM);
+                }
+                
+                fprintf(stderr, "child: exited with status %d\n", status);
+                --alive;
                 continue;
             }
-
-            if (WIFSIGNALED(status)) {
-                // completely bail out, we do not, and should not handle this.
-                return 1;
+            
+            if (WIFEXITED(status) || WIFSIGNALED(status)) {
+                fprintf(stderr, "monitor: exited with status %d\n", status);
+                // this is normal, each child process exits O.K.
+                --alive;
+                continue;
             }
         }
     }
     
-    return 0;
+    return exit_status;
 }
