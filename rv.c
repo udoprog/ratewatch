@@ -14,9 +14,10 @@
 #define UNIT "KB/s"
 #define UNITSIZE 1000
 
-char *subprocess;
-
-int gettime(char *buffer, size_t size) {
+int gettime(buffer, size)
+    char *buffer;
+    size_t size;
+{
     time_t rawtime;
     struct tm *timeinfo;
     
@@ -33,106 +34,121 @@ int gettime(char *buffer, size_t size) {
     strftime(buffer, size, "%Y-%m-%d %H:%M:%S", timeinfo);
 }
 
-FILE *openlog(const char *logfile) {
+FILE *openlog(logfile)
+    const char *logfile;
+{
     return fopen(logfile, "a");
 }
 
-unsigned long long msdiff(struct timeb now, struct timeb then) {
+unsigned long long msdiff(now, then)
+    struct timeb now;
+    struct timeb then;
+{
   return ((now.time - then.time) * MSSEC) + (now.millitm - then.millitm);
 }
 
-int monitor_process(int in_fd, int out_fd, int argc, char *argv[]) {
-  const char *name = argv[0];
-  const char *logfile = argv[1];
-  
-  char *buffer = malloc(BUFFER_SIZE * sizeof(char));
-  
-  if (buffer == NULL) {
-    fprintf(stderr, "%s: malloc: %s\n", name, strerror(errno));
-    return 1;
-  }
+int monitor_process(in_fd, out_fd, argc, argv)
+    int in_fd;
+    int out_fd;
+    int argc;
+    char *argv[];
+{
+    const char *name = argv[0];
+    const char *logfile = argv[1];
+    
+    char *buffer = malloc(BUFFER_SIZE * sizeof(char));
+    
+    if (buffer == NULL) {
+        fprintf(stderr, "%s: malloc: %s\n", name, strerror(errno));
+        return 1;
+    }
 
-  size_t read_s, write_s;
+    size_t read_s, write_s;
 
-  struct timeb now, then;
+    struct timeb now, then;
 
-  unsigned long long diff = 0;
-  unsigned long long byte = 0;
+    unsigned long long diff = 0;
+    unsigned long long byte = 0;
 
-  char now_time[512];
-  
-  FILE *log_fd;
-  
-  if (ftime(&then)) {
-    fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
-    return 1;
-  }
-  
-  while(1) {
+    char now_time[512];
+    
+    FILE *log_fd;
+    
     if (ftime(&then)) {
-      fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
-      return 1;
+        fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
+        return 1;
     }
     
-    read_s = read(in_fd, buffer, BUFFER_SIZE);
-    
-    if (read_s == -1) {
-      fprintf(stderr, "%s: read: %s\n", name, strerror(errno));
-      return 1;
-    }
-    
-    if (read_s == 0) {
-      break;
-    }
-    
-    write_s = write(out_fd, buffer, read_s);
-    
-    if (write_s == -1) {
-      fprintf(stderr, "%s: write: %s\n", name, strerror(errno));
-      break;
-    }
+    while(1) {
+        if (ftime(&then)) {
+            fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
+            return 1;
+        }
+        
+        if ((read_s = read(in_fd, buffer, BUFFER_SIZE)) == -1) {
+            fprintf(stderr, "%s: read: %s\n", name, strerror(errno));
+            return 1;
+        }
+        
+        if (read_s == 0) {
+            break;
+        }
+        
+        if ((write_s = write(out_fd, buffer, read_s)) == -1) {
+            fprintf(stderr, "%s: write: %s\n", name, strerror(errno));
+            break;
+        }
 
-    if (ftime(&now)) {
-      fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
-      break;
-    }
-    
-    diff += msdiff(now, then);
-    byte += write_s;
-    
-    if (diff <= (WAIT * MSSEC)) {
-      continue;
-    }
+        if (ftime(&now)) {
+            fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
+            break;
+        }
+        
+        diff += msdiff(now, then);
+        byte += write_s;
+        
+        if (diff <= (WAIT * MSSEC)) {
+            continue;
+        }
 
-    if ((log_fd = openlog(logfile)) == NULL) {
-      fprintf(stderr, "%s: openlog: %s\n", name, strerror(errno));
-      return 1;
-    }
-    
-    if (gettime(now_time, 512) == -1) {
-      fprintf(stderr, "%s: gettime: %s\n", name, strerror(errno));
-      return 1;
-    }
-    
-    fprintf(log_fd, "%s: %s - %lld " UNIT "\n", name, now_time, ((byte / diff) * 1000) / UNITSIZE);
-    fclose(log_fd);
+        if ((log_fd = openlog(logfile)) == NULL) {
+            fprintf(stderr, "%s: openlog: %s\n", name, strerror(errno));
+            return 1;
+        }
+        
+        if (gettime(now_time, 512) == -1) {
+            fprintf(stderr, "%s: gettime: %s\n", name, strerror(errno));
+            return 1;
+        }
+        
+        fprintf(log_fd, "%s: %s - %lld " UNIT "\n", name, now_time, ((byte / diff) * 1000) / UNITSIZE);
+        
+        if (fclose(log_fd) == EOF) {
+            fprintf(stderr, "%s: fclose: %s\n", name, strerror(errno));
+            return 1;
+        }
 
-    diff = 0;
-    byte = 0;
-  }
-  
-  return 0;
+        diff = 0;
+        byte = 0;
+    }
+    
+    return 0;
 }
 
-int fork_proc(int (*cb)(int, int, int, char**), FILE *io[], int argc, char *argv[]) {
+pid_t fork_proc(cb, io, argc, argv)
+    int (*cb)(int, int, int, char**);
+    int io[];
+    int argc;
+    char *argv[];
+{
     int c_in[2];
     int c_out[2];
     
-    if (io[0] == NULL) {
+    if (io[0] == -1) {
         pipe(c_in);
     }
-
-    if (io[1] == NULL) {
+    
+    if (io[1] == -1) {
         pipe(c_out);
     }
     
@@ -140,132 +156,143 @@ int fork_proc(int (*cb)(int, int, int, char**), FILE *io[], int argc, char *argv
 
     if (p == -1) {
         perror("fork");
-        return 0;
+        return -1;
     }
     
     if (p == 0) {
-        if (io[0] == NULL) {
+        if (io[0] == -1) {
             close(c_in[1]);         // close child in write end.
-            
-            io[0] = fdopen(c_in[0], "r");
-
-            if (io[0] == NULL) {
-                perror("fdopen");
-                _exit(1);
-            }
+            io[0] = c_in[0];
         }
         
-        if (io[1] == NULL) {
+        if (io[1] == -1) {
             close(c_out[0]);         // close child out read end.
-            io[1] = fdopen(c_out[1], "w");
-            
-            if (io[1] == NULL) {
-                perror("fdopen");
-                _exit(1);
-            }
+            io[1] = c_out[1];
         }
         
-        _exit(cb(fileno(io[0]), fileno(io[1]), argc, argv));
+        _exit(cb(io[0], io[1], argc, argv));
     }
     
-    if (io[0] == NULL) {
+    if (io[0] == -1) {
         close(c_in[0]);
-        
-        io[0] = fdopen(c_in[1], "w");    // stdin write end for parent.
-        
-        if (io[0] == NULL) {
-            perror("fdopen");
-            _exit(1);
-        }
+        io[0] = c_in[1];    // stdin write end for parent.
     }
     
-    if (io[1] == NULL) {
+    if (io[1] == -1) {
         close(c_out[1]);
-        
-        io[1] = fdopen(c_out[0], "r");   // stdout read end for parent.
-        
-        if (io[1] == NULL) {
-            perror("fdopen");
-            _exit(0);
-        }
+        io[1] = c_out[0];   // stdout read end for parent.
     }
     
     return p;
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 3) {
-    fprintf(stderr, "usage: pv <logfile> <subprocess> [arguments]\n");
-    return 1;
-  }
-
-  int status;
-
-  char* logfile = argv[1];
-  
-  char *pin_argv[] =  {"IN ", logfile};
-  char *pout_argv[] = {"OUT", logfile};
-
-  FILE *pin_io[2] = {stdin, NULL};
-  int pin = fork_proc(&monitor_process, pin_io, 2, pin_argv);
-  
-  FILE *pout_io[2] = {NULL, stdout};
-  int pout = fork_proc(&monitor_process, pout_io, 2, pout_argv);
-  
-  if (waitpid(pin, &status, WNOHANG) != 0) {
-    fprintf(stderr, "fork: unable to start monitor child\n");
-    return 1;
-  }
-
-  if (waitpid(pout, &status, WNOHANG) != 0) {
-    fprintf(stderr, "fork: unable to start monitor child\n");
-    return 1;
-  }
-  
-  char **argvc = &argv[2];
-  
-  int cpid = fork();
-
-  if (cpid == -1) {
-    perror("fork");
-    return 1;
-  }
-  
-  if (cpid == 0) {
-    if (dup2(fileno(pin_io[1]), 0) == -1) {
+int spawn_process(io, argv)
+    int io[];
+    char *argv[];
+{
+    if (dup2(io[0], 0) == -1) {
       perror("dup2");
-      _exit(1);
+      return -1;
     }
     
-    if (dup2(fileno(pout_io[0]), 1) == -1) {
+    if (dup2(io[1], 1) == -1) {
       perror("dup2");
-      _exit(1);
+      return -1;
     }
     
-    if (execvp(argvc[0], argvc) == -1) {
+    if (execvp(argv[0], argv) == -1) {
       perror("execvp");
     }
+
+    return -1;
+}
+
+int main(argc, argv)
+    int argc;
+    char *argv[];
+{
+    if (argc < 3) {
+        fprintf(stderr, "usage: pv <logfile> <subprocess> [arguments]\n");
+        return 1;
+    }
+  
+    const char *logfile = argv[1];
+
+    pid_t p_stdout_pid, p_stdin_pid, child_pid;
     
-    fprintf(stderr, "stopping: cat\n");
+    int io[2];
+    
+    {
+        /* fork and create stdin monitor process */
+        const char *p_stdin_argv[] =  {"IN ", logfile};
+        int p_stdin_io[2] = {fileno(stdin), -1};
+        
+        if ((p_stdin_pid = fork_proc(&monitor_process, p_stdin_io, 2, p_stdin_argv)) == -1) 
+        {
+            perror("fork_proc");
+            return 1;
+        }
 
-    _exit(1);
-  }
-  
-  int i;
-  
-  for (i = 0; i < 3; i++) {
-    pid_t pid = waitpid(0, &status, 0);
-
-    if (WIFEXITED(status)) {
-      // this is normal, each child process exits O.K.
-      continue;
+        io[0] = p_stdin_io[1];
     }
     
-    if (WIFSIGNALED(status)) {
-      // completely bail out, we do not, and should not handle this.
-      return 1;
+    {
+        /* fork and create stdout monitor process */
+        const char *p_stdout_argv[] = {"OUT", logfile};
+        int p_stdout_io[2] = {-1, fileno(stdout)};
+        
+        if ((p_stdout_pid = fork_proc(&monitor_process, p_stdout_io, 2, p_stdout_argv)) == -1)
+        {
+            perror("fork_proc");
+            return 1;
+        }
+        
+        io[1] = p_stdout_io[0];
     }
-  }
   
-  return status;
+    {
+        /* check and make sure that the processes are not prematurely dead */
+        
+        if (waitpid(p_stdin_pid, NULL, WNOHANG) != 0) {
+            fprintf(stderr, "fork: unable to start monitor child\n");
+            return 1;
+        }
+        
+        if (waitpid(p_stdout_pid, NULL, WNOHANG) != 0) {
+            fprintf(stderr, "fork: unable to start monitor child\n");
+            return 1;
+        }
+    }
+    
+    if ((child_pid = fork()) == -1) {
+        perror("fork");
+        return 1;
+    }
+  
+    if (child_pid == 0) {
+        spawn_process(io, &argv[2]);
+        // this should not happen
+        _exit(1);
+    }
+    
+    {
+        int i;
+        int status;
+        
+        for (i = 0; i < 3; i++) {
+            pid_t pid = waitpid(0, &status, 0);
+
+            if (WIFEXITED(status)) {
+                // this is normal, each child process exits O.K.
+                continue;
+            }
+
+            if (WIFSIGNALED(status)) {
+                // completely bail out, we do not, and should not handle this.
+                return 1;
+            }
+        }
+    }
+    
+    return 0;
 }
