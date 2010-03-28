@@ -97,22 +97,17 @@ int monitor_process(in_fd, out_fd, argc, argv)
         fprintf(stderr, "%s: malloc: %s\n", name, strerror(errno));
         return 1;
     }
-
+    
     size_t read_s, write_s;
-
+    
     struct timeb now, then;
-
+    
     unsigned long long diff = 0;
     unsigned long long byte = 0;
     
     FILE *log_fd;
     
-    if (ftime(&then)) {
-        fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
-        return 1;
-    }
-    
-    while(1) {
+    do {
         if (ftime(&then)) {
             fprintf(stderr, "%s: ftime: %s\n", name, strerror(errno));
             break;
@@ -145,15 +140,14 @@ int monitor_process(in_fd, out_fd, argc, argv)
         }
 
         if (report_rate(name, diff, byte, logfile) == -1) {
-            return 1;
+            break;
         }
         
         diff = 0;
         byte = 0;
-    }
+    } while (1);
     
-    report_rate(name, diff, byte, logfile);
-    return 0;
+    return report_rate(name, diff, byte, logfile);
 }
 
 pid_t fork_proc(cb, io, argc, argv)
@@ -319,13 +313,13 @@ int main(argc, argv)
                     kill(monitors[i], SIGTERM);
                 }
                 
-                fprintf(stderr, "child: exited with status %d\n", status);
+                //fprintf(stderr, "child: exited with status %d\n", status);
                 --alive;
                 continue;
             }
             
             if (WIFEXITED(status) || WIFSIGNALED(status)) {
-                fprintf(stderr, "monitor: exited with status %d\n", status);
+                // fprintf(stderr, "monitor: exited with status %d\n", status);
                 // this is normal, each child process exits O.K.
                 --alive;
                 continue;
