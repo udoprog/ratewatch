@@ -251,8 +251,21 @@ int main(int argc, char *argv[]) {
     _exit(1);
   }
   
-  waitpid(cpid, &status, 0);
-  waitpid(pin, NULL, 0);
-  waitpid(pout, NULL, 0);
+  int i;
+  
+  for (i = 0; i < 3; i++) {
+    pid_t pid = waitpid(0, &status, 0);
+
+    if (WIFEXITED(status)) {
+      // this is normal, each child process exits O.K.
+      continue;
+    }
+    
+    if (WIFSIGNALED(status)) {
+      // completely bail out, we do not, and should not handle this.
+      return 1;
+    }
+  }
+  
   return status;
 }
