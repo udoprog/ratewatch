@@ -10,7 +10,7 @@
 
 #define MSSEC 1000
 #define WAIT 10
-#define BUFFER_SIZE (1048576 * 10)
+#define BUFFER_SIZE 131072
 #define UNIT "KB/s"
 #define UNITSIZE 1000
 
