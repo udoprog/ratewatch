@@ -31,15 +31,11 @@ For using with sftp:
     touch $session/active
 
     function log {
-        echo "$(date +'%y%m%d-%H%M%S') - $@" >> $session/main.log
+        echo "$(date +'%Y-%m-%d %H:%M:%S') - $@" >> $session/main.log
     }
 
     log "login: $USER"
-
-    /usr/lib/openssh/rv $session/rate.in |\
-      /usr/lib/openssh/sftp-server |\
-      /usr/lib/openssh/rv $session/rate.out
-
+    /usr/lib/openssh/rv $session/main.log /usr/lib/openssh/sftp-server
     log "logout: $USER"
 
     rm $session/active
